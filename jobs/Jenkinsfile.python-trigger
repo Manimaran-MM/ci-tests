@@ -1,0 +1,39 @@
+pipeline {
+    agent {
+        label 'cico-workspace'
+    }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    stages {
+        stage('Reserve Duffy Node') {
+            steps {
+                sh """
+                echo "Reserving Duffy session..."
+                bash ./ci-tests/build_scripts/common/get-node.sh
+                """
+            }
+        }
+
+        stage('Run All Jobs in Single Node') {
+            steps {
+                withCredentials([file(credentialsId: 'GERRITHUB_PRIVATE_KEY', variable: 'GERRITHUB_KEY_FILE')]) {
+                    sh '''
+                        export GERRITHUB_KEY=$GERRITHUB_KEY_FILE
+                        python3 ci-tests/jobs/scripts/run_all_jobs.py
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            sh 'bash ./ci-tests/build_scripts/common/return-node.sh'  // Return the Duffy node
+            junit 'results.xml' // Publish JUnit XML so Jenkins shows per-job results
+        }
+    }
+}

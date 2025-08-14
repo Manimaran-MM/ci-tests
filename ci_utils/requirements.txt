@@ -1,0 +1,6 @@
+pytest==7.0.1
+pytest-xdist==3.0.2
+GitPython==3.1.18
+pytest-timeout
+# cryptography==36.0.2
+# paramiko==2.11.0
