@@ -1,0 +1,51 @@
+pipeline {
+    agent {
+        label 'cico-workspace'
+    }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    environment {
+        PATH = "$HOME/.local/bin:$PATH"
+        PYTHONPATH="ci-tests"
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    python3 -m pip install --user --upgrade pip setuptools wheel
+                    python3 -m pip install --user -r ./ci-tests/ci_utils/requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Tier-0 Tests') {
+            steps {
+                sh """
+                    export GIT_CLONE_DEPTH=1
+                    export NODE_COUNT=3
+
+                    echo "[PIPELINE]: Reserving nodes for tests..."
+                    pytest -v -s ci-tests/tests/test_reserve_nodes.py
+
+                    echo "[PIPELINE]: Setting up common test environment..."
+                    pytest -c ci-tests/ci_utils/pytest.ini -v -s -m nfs_tier_0 ci-tests/tests/test_ci_pre_req.py
+
+                    echo "[PIPELINE]: Running tests..."
+                    pytest -v -n 1 --capture=no --junitxml=report-nfs-tier-0.xml ci-tests/tests/test_nfs_tier_0.py
+                """
+            }
+            
+            post {
+                always {
+                    echo "Deleting reserved nodes..."
+                    sh 'pytest -v -s ci-tests/tests/test_delete_nodes.py'
+                }
+            }
+        }
+    }
+}

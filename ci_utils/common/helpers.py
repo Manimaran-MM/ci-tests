@@ -134,3 +134,72 @@ def run_cmd(session, cmd, check=True, timeout=3600, source_bashrc=False):
         raise RuntimeError(err)
     logger.info(f"[REMOTE] Command output for {cmd_to_run} with return code {code}:\n {out.strip()}")
     return out.strip(), code
+
+def create_file(session, path, content=None):
+    """Create a file, optionally with content."""
+    if content:
+        run_cmd(session, f'echo "{content}" > {path}')
+    else:
+        run_cmd(session, f"touch {path}")
+
+def read_file(session, path):
+    """Return file contents as string."""
+    out, code = run_cmd(session, f"cat {path}")
+    assert code == 0, f"Failed to read file {path}"
+    return out.strip()
+
+def check_file_exists(session, path):
+    """Check file existence."""
+    _, code = run_cmd(session, f"test -f {path}", check=False)
+    return code
+
+def make_dirs(session, path):
+    run_cmd(session, f"mkdir -p {path}")
+
+def remove_path(session, path):
+    run_cmd(session, f"rm -rf {path}")
+
+def list_recursive(session, path):
+    out, code = run_cmd(session, f"ls -R {path}")
+    assert code == 0, "Failed to list dirs"
+    return out
+
+
+### 
+####
+
+def get_file_lock(session, file_path, hold_time=30, background=True):
+    """
+    Acquire an exclusive file lock on a file for a specified time.
+
+    Args:
+        client_session: SSH/session handle for client
+        file_path (str): Path to the file to lock
+        hold_time (int): Duration (seconds) to hold the lock
+        background (bool): Run lock process in background (non-blocking)
+    """
+    py_code = (
+        f"from fcntl import flock, LOCK_EX, LOCK_NB, LOCK_UN; "
+        f"from time import sleep; "
+        f"f=open('{file_path}', 'w'); "
+        f"flock(f.fileno(), LOCK_EX | LOCK_NB); "
+        f"sleep({hold_time}); "
+        f"flock(f.fileno(), LOCK_UN)"
+    )
+
+    cmd = f"python3 -c \"{py_code}\""
+    if background:
+        cmd += " &"
+
+    run_cmd(session, cmd)
+
+def release_file_lock(session, file_path):
+    """
+    Force release of file lock by killing the holding process.
+    Args:
+        client_session: SSH/session handle for client
+        file_path (str): Path to file whose lock should be released
+    """
+    # Kill any python process holding the file open
+    cmd = f"pkill -f \"python3 -c.*{file_path}\""
+    run_cmd(session, cmd, check=False)

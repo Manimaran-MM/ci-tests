@@ -39,10 +39,6 @@ class GitWorkspace:
 
         git_url = f"https://{self.gerrit_host}/{self.gerrit_project}"
         try:
-            # logger.info("Fetching refspec %s from %s", self.gerrit_refspec, git_url)
-            # self.repo.git.fetch(git_url, self.gerrit_refspec, depth=self.clone_depth)
-            # self.repo.git.checkout("-b", self.gerrit_refspec, "FETCH_HEAD")
-            
             # Check if branch already exists
             branches = [b.name for b in self.repo.branches]
             if self.gerrit_refspec in branches:

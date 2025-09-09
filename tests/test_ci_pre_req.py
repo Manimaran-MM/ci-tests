@@ -51,6 +51,7 @@ def attach_test_name(request):
 # ------------------------------------
 @pytest.mark.checkpatch_fsal
 @pytest.mark.pynfs_cthon
+@pytest.mark.nfs_tier_0
 def test_clone_gerrit_ganesha_repo():    
     logger.info("[Pre-Req][Common]: Cloning Gerrit Ganesha Repo into workspace: %s", WORKSPACE)
     
@@ -58,8 +59,8 @@ def test_clone_gerrit_ganesha_repo():
     gerrit_project = os.getenv("GERRIT_PROJECT", "ffilz/nfs-ganesha")
     gerrit_refspec = os.getenv("GERRIT_REFSPEC", "")
     if not gerrit_refspec:
-        logger.error("GERRIT_REFSPEC environment variable is not set. Cannot proceed.")
-        assert False, "GERRIT_REFSPEC is required"
+        logger.warning("GERRIT_REFSPEC not set. Using 'refs/heads/next'")
+        gerrit_refspec = "refs/heads/next"
 
     git_helper = GitWorkspace(
         workspace=WORKSPACE,
@@ -207,6 +208,28 @@ def test_install_dependencies_for_pynfs_cthon(all_nodes, all_baremetal_nodes):
         all_baremetal_nodes[0]: setup_baremetal_node_pynfs_gpfs,
     }
     logger.info("[TEST][Pre-Req][PyNFS & Cthon]: Installing dependencies on remote node(s) in parallel")
+    with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
+        futures = {executor.submit(func, node): node for node, func in tasks.items()}
+
+        for future in as_completed(futures):
+            node = futures[future]
+            try:
+                msg = future.result()
+                logger.info(
+                    "Parallel setup completed successfully on node: %s with output:\n%s",
+                    node, msg
+                )
+            except Exception as e:
+                pytest.fail(f"Setup failed on node {node}: {e}")
+
+@pytest.mark.nfs_tier_0
+def test_install_dependencies_for_nfs_tier_0(all_nodes):
+    tasks = {
+        all_nodes[0]: setup_node_pynfs_cthon,
+        all_nodes[1]: setup_install_client_deps,
+        all_nodes[2]: setup_install_client_deps,
+    }
+    logger.info("[TEST][Pre-Req][nfs-tier-0]: Installing dependencies on remote node(s) in parallel")
     with ThreadPoolExecutor(max_workers=len(tasks)) as executor:
         futures = {executor.submit(func, node): node for node, func in tasks.items()}
 
