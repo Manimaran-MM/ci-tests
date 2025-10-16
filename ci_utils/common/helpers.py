@@ -15,7 +15,7 @@ logger = get_logger(__name__)
 # ---------------------------------------
 # SCP Copy from Workspace to Remote Node
 # ---------------------------------------
-def scp_copy(node_ip, files, remote_dir="/root", user="root", key_file=None):
+def scp_copy(node, files, remote_dir="/root", user="root", key_file=None):
     """Copy files or directories to a remote node using SCP.
     Args:
         node_ip (str): Remote node IP address.
@@ -26,13 +26,18 @@ def scp_copy(node_ip, files, remote_dir="/root", user="root", key_file=None):
     Raises:
         FileNotFoundError: If any of the specified files/directories do not exist.
     """
-    logger.info(f"[STEP]: Copying files to remote node {node_ip}")
+    logger.info(f"[STEP]: Copying files to remote node {node}")
     ssh_opts = ["-o", "StrictHostKeyChecking=no", "-o", "UserKnownHostsFile=/dev/null"]
     if key_file:
         ssh_opts.extend(["-i", key_file])
 
     if not isinstance(files, list):
         files = [files]
+
+    if hasattr(node, "host"):  # assuming RemoteSession has `host` or similar attribute
+        node_ip = node.node_ip
+    else:
+        node_ip = node
 
     for path in files:
         if not os.path.exists(path):
