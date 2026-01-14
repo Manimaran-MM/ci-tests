@@ -47,7 +47,7 @@ EXPORT {{
     Path = "/{self.vfs_volume}";
     Pseudo = "/{self.vfs_volume}";
     Access_type = RW;
-    Disable_ACL = True;
+    Disable_ACL = False;
     Protocols = "3","4";
     Transports = "UDP","TCP";
     SecType = "sys";
@@ -83,18 +83,18 @@ EXPORT {{
     # -------------------------------
     def enable_acl_if_required(self):
         logger.info("[TEST]: Checking if ACL needs to be enabled")
-        if self.enable_acl:
-            logger.info("Enabling ACL for volume...")
-            run_cmd(self.session, f"sed -i s/'Disable_ACL = .*'/'Disable_ACL = false;'/g {self.export_conf}")
-            run_cmd(self.session, f"cat {self.export_conf}")
-            export_id, _ = run_cmd(self.session, f"grep 'Export_Id' {self.export_conf} | sed 's/^[[:space:]]*Export_Id.*=[[:space:]]*\\([0-9]*\\).*/\\1/'")
-            run_cmd(
-                self.session,
-                f"dbus-send --type=method_call --print-reply --system "
-                f"--dest=org.ganesha.nfsd /org/ganesha/nfsd/ExportMgr "
-                f"org.ganesha.nfsd.exportmgr.UpdateExport string:{self.export_conf} "
-                f"string:\"EXPORT(Export_Id = {export_id})\""
-            )
+        # if self.enable_acl:
+        #     # logger.info("Enabling ACL for volume...")
+        #     # run_cmd(self.session, f"sed -i s/'Disable_ACL = .*'/'Disable_ACL = false;'/g {self.export_conf}")
+        #     run_cmd(self.session, f"cat {self.export_conf}")
+        #     export_id, _ = run_cmd(self.session, f"grep 'Export_Id' {self.export_conf} | sed 's/^[[:space:]]*Export_Id.*=[[:space:]]*\\([0-9]*\\).*/\\1/'")
+        #     run_cmd(
+        #         self.session,
+        #         f"dbus-send --type=method_call --print-reply --system "
+        #         f"--dest=org.ganesha.nfsd /org/ganesha/nfsd/ExportMgr "
+        #         f"org.ganesha.nfsd.exportmgr.UpdateExport string:{self.export_conf} "
+        #         f"string:\"EXPORT(Export_Id = {export_id})\""
+        #     )
 
     # -------------------------------
     # Enable Security_Label if required
