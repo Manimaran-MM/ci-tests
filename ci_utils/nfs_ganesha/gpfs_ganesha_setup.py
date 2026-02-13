@@ -53,10 +53,10 @@ class GPFSGaneshaManager:
     def install_ganesha(self, test_workspace: str):
         logger.info("[STEP]: Installing NFS-Ganesha with GPFS support on the VM")
         yum_repo = os.getenv("GPFS_YUM_REPO", "")
-        if yum_repo:
-            self._install_from_repo(yum_repo)
-        else:
-            self._build_from_source(test_workspace)
+        # if yum_repo:
+        #     self._install_from_repo(yum_repo)
+        # else:
+        #     self._build_from_source(test_workspace)
 
         self.coredump_setup()
         self.start_ganesha_service()

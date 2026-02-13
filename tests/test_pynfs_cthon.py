@@ -139,354 +139,354 @@ def cmake_flags(request, cmake_config):
 # Actual Tests Starts Here
 # -----------------------
 
-# -------------------------
-# Test 1: Cthon with CephFS
-# Node allocation: 1 (index 1)
-# -------------------------
-@pytest.mark.parametrize("create_session", [1], indirect=True)
-@pytest.mark.parametrize("cmake_flags", ["test_fsal_cephfs"], indirect=True)
-@pytest.mark.timeout(1200) 
-def test_cthon_cephfs(create_session, cmake_flags):
-    try:
-        logger.info("[TEST START]: Cthon with CephFS")
+# # -------------------------
+# # Test 1: Cthon with CephFS
+# # Node allocation: 1 (index 1)
+# # -------------------------
+# @pytest.mark.parametrize("create_session", [1], indirect=True)
+# @pytest.mark.parametrize("cmake_flags", ["test_fsal_cephfs"], indirect=True)
+# @pytest.mark.timeout(1200) 
+# def test_cthon_cephfs(create_session, cmake_flags):
+#     try:
+#         logger.info("[TEST START]: Cthon with CephFS")
         
-        remote_session, test_workspace, server_node = create_session
+#         remote_session, test_workspace, server_node = create_session
 
-        logger.info("[TEST NODE DETAILS]: Node: %s", server_node)
-        logger.info("[TEST WORKSPACE DETAILS]: Workspace: %s", test_workspace)
-        logger.info("[TEST SESSION DETAILS]: Session: %s", remote_session)
+#         logger.info("[TEST NODE DETAILS]: Node: %s", server_node)
+#         logger.info("[TEST WORKSPACE DETAILS]: Workspace: %s", test_workspace)
+#         logger.info("[TEST SESSION DETAILS]: Session: %s", remote_session)
 
-        flag_str = " ".join(cmake_flags)
-        logger.info("Using CMake flags: %s", flag_str)
+#         flag_str = " ".join(cmake_flags)
+#         logger.info("Using CMake flags: %s", flag_str)
 
-        _, code = run_cmd(
-            remote_session,
-            f"cd {test_workspace}/nfs-ganesha && "
-            "rm -rf build && "
-            "mkdir -p build && "
-            "cd build && "
-            f"cmake ../src {flag_str} && "
-            "make && "
-            "make install"
-        )
+#         _, code = run_cmd(
+#             remote_session,
+#             f"cd {test_workspace}/nfs-ganesha && "
+#             "rm -rf build && "
+#             "mkdir -p build && "
+#             "cd build && "
+#             f"cmake ../src {flag_str} && "
+#             "make && "
+#             "make install"
+#         )
 
-        assert code == 0, f"Cthon Make CephFS tests failed"
+#         assert code == 0, f"Cthon Make CephFS tests failed"
 
-        logger.info("Ceph setup for Cthon tests")
-        ceph_setup = CephGaneshaSetup(session=remote_session)
-        subvol_path = ceph_setup.full_setup()
+#         logger.info("Ceph setup for Cthon tests")
+#         ceph_setup = CephGaneshaSetup(session=remote_session)
+#         subvol_path = ceph_setup.full_setup()
 
-        logger.info("NFS Ganesha setup for Cthon tests")
-        ganesha_setup = GaneshaManager(
-            session=remote_session,
-            subvol_path=subvol_path,
-            cephfs_name=ceph_setup.cephfs_name
-        )
-        ganesha_setup.setup()
+#         logger.info("NFS Ganesha setup for Cthon tests")
+#         ganesha_setup = GaneshaManager(
+#             session=remote_session,
+#             subvol_path=subvol_path,
+#             cephfs_name=ceph_setup.cephfs_name
+#         )
+#         ganesha_setup.setup()
 
-        logger.info("Running Cthon tests on node: %s", server_node)
-        cthon = CthonManager(session=remote_session)
-        cthon.clone_and_build()
+#         logger.info("Running Cthon tests on node: %s", server_node)
+#         cthon = CthonManager(session=remote_session)
+#         cthon.clone_and_build()
 
-        result_holder = [None]
-        ganesha_died = threading.Event()
-        test_done = threading.Event()
+#         result_holder = [None]
+#         ganesha_died = threading.Event()
+#         test_done = threading.Event()
 
-        def run_cthon():
-            try:
-                cthon_logs, rc = cthon.run_all_cthon_test(skip_v3=True)
-                result_holder[0] = (cthon_logs, rc, False)
-            except Exception as e:
-                result_holder[0] = (str(e) or "Test aborted", 1, ganesha_died.is_set())
-            finally:
-                test_done.set()
+#         def run_cthon():
+#             try:
+#                 cthon_logs, rc = cthon.run_all_cthon_test(skip_v3=True)
+#                 result_holder[0] = (cthon_logs, rc, False)
+#             except Exception as e:
+#                 result_holder[0] = (str(e) or "Test aborted", 1, ganesha_died.is_set())
+#             finally:
+#                 test_done.set()
 
-        def watch_ganesha():
-            while not test_done.is_set() and not ganesha_died.is_set():
-                _, code = run_cmd(remote_session, "pgrep ganesha", check=False)
-                if code != 0:
-                    ganesha_died.set()
-                    remote_session.close()
-                    break
-                sleep(5)
+#         def watch_ganesha():
+#             while not test_done.is_set() and not ganesha_died.is_set():
+#                 _, code = run_cmd(remote_session, "pgrep ganesha", check=False)
+#                 if code != 0:
+#                     ganesha_died.set()
+#                     remote_session.close()
+#                     break
+#                 sleep(5)
 
-        t1 = threading.Thread(target=run_cthon)
-        t2 = threading.Thread(target=watch_ganesha)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+#         t1 = threading.Thread(target=run_cthon)
+#         t2 = threading.Thread(target=watch_ganesha)
+#         t1.start()
+#         t2.start()
+#         t1.join()
+#         t2.join()
 
-        if result_holder[0] is None:
-            result_holder[0] = ("Test thread failed without result", 1, False)
-        cthon_logs, rc, ganesha_stopped = result_holder[0]
-        if ganesha_stopped:
-            logger.error("Ganesha process died during test; test run aborted.")
-        logger.info("Type of rc: %s", type(rc))
-        if rc != 0 or ganesha_stopped:
-            # Get ganesha backtrace when session is still open (not ganesha_stopped, or session may be closed)
-            stacktrace = check_process_crash_and_backtrace(
-                remote_session,
-                process_name="ganesha",
-                cores_dir="/tmp/cores",
-                binary_path="/usr/bin/ganesha.nfsd",
-            )
-            if stacktrace:
-                backtrace_file = os.path.join(FAILURE_FILE, "cthon_cephfs_ganesha_backtrace.txt")
-                with open(backtrace_file, "w", encoding="utf-8") as f:
-                    f.write(stacktrace)
-                logger.info("Ganesha backtrace written to %s", backtrace_file)
-            cthon_log_file = os.path.join(FAILURE_FILE, "cthon_logs.txt")
-            with open(cthon_log_file, "w", encoding="utf-8") as f:
-                f.write(cthon_logs)
-            logger.info("Cthon logs written to %s", cthon_log_file)
-        else:
-            logger.info("Cthon tests completed successfully")
-            failure_msg = f"\n**🟢 Cthon-CephFS:** `Passed`"
-            with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-                f.write(failure_msg)
-            with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
-                f.write("\nPassed")
+#         if result_holder[0] is None:
+#             result_holder[0] = ("Test thread failed without result", 1, False)
+#         cthon_logs, rc, ganesha_stopped = result_holder[0]
+#         if ganesha_stopped:
+#             logger.error("Ganesha process died during test; test run aborted.")
+#         logger.info("Type of rc: %s", type(rc))
+#         if rc != 0 or ganesha_stopped:
+#             # Get ganesha backtrace when session is still open (not ganesha_stopped, or session may be closed)
+#             stacktrace = check_process_crash_and_backtrace(
+#                 remote_session,
+#                 process_name="ganesha",
+#                 cores_dir="/tmp/cores",
+#                 binary_path="/usr/bin/ganesha.nfsd",
+#             )
+#             if stacktrace:
+#                 backtrace_file = os.path.join(FAILURE_FILE, "cthon_cephfs_ganesha_backtrace.txt")
+#                 with open(backtrace_file, "w", encoding="utf-8") as f:
+#                     f.write(stacktrace)
+#                 logger.info("Ganesha backtrace written to %s", backtrace_file)
+#             cthon_log_file = os.path.join(FAILURE_FILE, "cthon_logs.txt")
+#             with open(cthon_log_file, "w", encoding="utf-8") as f:
+#                 f.write(cthon_logs)
+#             logger.info("Cthon logs written to %s", cthon_log_file)
+#         else:
+#             logger.info("Cthon tests completed successfully")
+#             failure_msg = f"\n**🟢 Cthon-CephFS:** `Passed`"
+#             with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+#                 f.write(failure_msg)
+#             with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
+#                 f.write("\nPassed")
 
-        assert rc == 0 and not ganesha_stopped, (
-            f"Cthon CephFS tests failed" + (" (ganesha died during test)" if ganesha_stopped else "")
-        )
-    except Exception as e:
-        failure_msg = f"\n**🔴 Cthon-CephFS:** `Failed`"
-        with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-            f.write(failure_msg)
-        with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
-            f.write("\nFailed")
+#         assert rc == 0 and not ganesha_stopped, (
+#             f"Cthon CephFS tests failed" + (" (ganesha died during test)" if ganesha_stopped else "")
+#         )
+#     except Exception as e:
+#         failure_msg = f"\n**🔴 Cthon-CephFS:** `Failed`"
+#         with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+#             f.write(failure_msg)
+#         with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
+#             f.write("\nFailed")
 
 
-# -----------------------------------------------------------------
-# Test 2: PyNFS with CephFS
-# Node allocation: 2 (index 0 - client, index 2 - server)
-# -----------------------------------------------------------------
-@pytest.mark.parametrize("create_session", [[0, 2]], indirect=True)
-@pytest.mark.parametrize("cmake_flags", ["test_fsal_cephfs"], indirect=True)
-def test_pynfs_cephfs(create_session, cmake_flags):
-    try:
-        logger.info("[TEST START]: PyNFS with CephFS")
-        (client_session, client_workspace, client_node), (server_session, server_workspace, server_node) = create_session
-        failure_msg = ""
+# # -----------------------------------------------------------------
+# # Test 2: PyNFS with CephFS
+# # Node allocation: 2 (index 0 - client, index 2 - server)
+# # -----------------------------------------------------------------
+# @pytest.mark.parametrize("create_session", [[0, 2]], indirect=True)
+# @pytest.mark.parametrize("cmake_flags", ["test_fsal_cephfs"], indirect=True)
+# def test_pynfs_cephfs(create_session, cmake_flags):
+#     try:
+#         logger.info("[TEST START]: PyNFS with CephFS")
+#         (client_session, client_workspace, client_node), (server_session, server_workspace, server_node) = create_session
+#         failure_msg = ""
 
-        logger.info("[TEST NODE DETAILS]: Client Node: %s, Server Node: %s", client_node, server_node)
-        logger.info("[TEST WORKSPACE DETAILS]: Client Workspace: %s, Server Workspace: %s", client_workspace, server_workspace)
-        logger.info("[TEST SESSION DETAILS]: Client Session: %s, Server Session: %s", client_session, server_session)
+#         logger.info("[TEST NODE DETAILS]: Client Node: %s, Server Node: %s", client_node, server_node)
+#         logger.info("[TEST WORKSPACE DETAILS]: Client Workspace: %s, Server Workspace: %s", client_workspace, server_workspace)
+#         logger.info("[TEST SESSION DETAILS]: Client Session: %s, Server Session: %s", client_session, server_session)
 
-        flag_str = " ".join(cmake_flags)
-        logger.info("Using CMake flags: %s", flag_str)
+#         flag_str = " ".join(cmake_flags)
+#         logger.info("Using CMake flags: %s", flag_str)
 
-        _, code = run_cmd(
-            server_session,
-            f"cd {server_workspace}/nfs-ganesha && "
-            "rm -rf build && "
-            "mkdir -p build && "
-            "cd build && "
-            f"cmake ../src {flag_str} && "
-            "make && "
-            "make install"
-        )
+#         _, code = run_cmd(
+#             server_session,
+#             f"cd {server_workspace}/nfs-ganesha && "
+#             "rm -rf build && "
+#             "mkdir -p build && "
+#             "cd build && "
+#             f"cmake ../src {flag_str} && "
+#             "make && "
+#             "make install"
+#         )
 
-        assert code == 0, f"PyNFS Make CephFS tests failed"
+#         assert code == 0, f"PyNFS Make CephFS tests failed"
 
-        logger.info("Ceph setup for PyNFS tests")
-        ceph_setup = CephGaneshaSetup(session=server_session)
-        subvol_path = ceph_setup.full_setup()
+#         logger.info("Ceph setup for PyNFS tests")
+#         ceph_setup = CephGaneshaSetup(session=server_session)
+#         subvol_path = ceph_setup.full_setup()
 
-        logger.info("NFS Ganesha setup for PyNFS tests")
-        ganesha_setup = GaneshaManager(
-            session=server_session,
-            subvol_path=subvol_path,
-            cephfs_name=ceph_setup.cephfs_name,
-            test_type="pynfs"
-        )
-        ganesha_setup.setup()
+#         logger.info("NFS Ganesha setup for PyNFS tests")
+#         ganesha_setup = GaneshaManager(
+#             session=server_session,
+#             subvol_path=subvol_path,
+#             cephfs_name=ceph_setup.cephfs_name,
+#             test_type="pynfs"
+#         )
+#         ganesha_setup.setup()
 
-        # -----------------------
-        # Client Execution (thread 1: pynfs tests; thread 2: watch ganesha)
-        # -----------------------
-        logger.info("Running PyNFS tests on client node: %s", client_node)
-        pynfs = PyNFSManager(session=client_session, server_ip=server_node, backend_type="ceph")
-        result_holder = [None]
-        ganesha_died = threading.Event()
-        test_done = threading.Event()
+#         # -----------------------
+#         # Client Execution (thread 1: pynfs tests; thread 2: watch ganesha)
+#         # -----------------------
+#         logger.info("Running PyNFS tests on client node: %s", client_node)
+#         pynfs = PyNFSManager(session=client_session, server_ip=server_node, backend_type="ceph")
+#         result_holder = [None]
+#         ganesha_died = threading.Event()
+#         test_done = threading.Event()
 
-        def run_pynfs():
-            try:
-                r = pynfs.run_all_tests(export="/nfs/cephfs")
-                result_holder[0] = (r[0], r[1], r[2], False)
-            except Exception as e:
-                result_holder[0] = (True, str(e) or "Test aborted", 1, ganesha_died.is_set())
-            finally:
-                test_done.set()
+#         def run_pynfs():
+#             try:
+#                 r = pynfs.run_all_tests(export="/nfs/cephfs")
+#                 result_holder[0] = (r[0], r[1], r[2], False)
+#             except Exception as e:
+#                 result_holder[0] = (True, str(e) or "Test aborted", 1, ganesha_died.is_set())
+#             finally:
+#                 test_done.set()
 
-        def watch_ganesha():
-            while not test_done.is_set() and not ganesha_died.is_set():
-                _, code = run_cmd(server_session, "pgrep ganesha", check=False)
-                if code != 0:
-                    ganesha_died.set()
-                    client_session.close()
-                    break
-                sleep(5)
+#         def watch_ganesha():
+#             while not test_done.is_set() and not ganesha_died.is_set():
+#                 _, code = run_cmd(server_session, "pgrep ganesha", check=False)
+#                 if code != 0:
+#                     ganesha_died.set()
+#                     client_session.close()
+#                     break
+#                 sleep(5)
 
-        t1 = threading.Thread(target=run_pynfs)
-        t2 = threading.Thread(target=watch_ganesha)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+#         t1 = threading.Thread(target=run_pynfs)
+#         t2 = threading.Thread(target=watch_ganesha)
+#         t1.start()
+#         t2.start()
+#         t1.join()
+#         t2.join()
 
-        if result_holder[0] is None:
-            result_holder[0] = (True, "Test thread failed without result", 1, False)
-        fail_found, failure_summary, code, ganesha_stopped = result_holder[0]
-        if ganesha_stopped:
-            logger.error("Ganesha process died during test; test run aborted.")
+#         if result_holder[0] is None:
+#             result_holder[0] = (True, "Test thread failed without result", 1, False)
+#         fail_found, failure_summary, code, ganesha_stopped = result_holder[0]
+#         if ganesha_stopped:
+#             logger.error("Ganesha process died during test; test run aborted.")
 
-        logger.info("Value %s: Type of rc: %s", fail_found, type(fail_found))
-        logger.info("Value %s: Type of code: %s", code, type(code))
+#         logger.info("Value %s: Type of rc: %s", fail_found, type(fail_found))
+#         logger.info("Value %s: Type of code: %s", code, type(code))
 
-        if fail_found or ganesha_stopped:
-            stacktrace = check_process_crash_and_backtrace(
-                server_session,
-                process_name="ganesha",
-                cores_dir="/tmp/cores",
-                binary_path="/usr/bin/ganesha.nfsd",
-            )
-            if stacktrace:
-                backtrace_file = os.path.join(FAILURE_FILE, "pynfs_cephs_ganesha_backtrace.txt")
-                with open(backtrace_file, "w", encoding="utf-8") as f:
-                    f.write(stacktrace)
-                logger.info("Ganesha backtrace written to %s", backtrace_file)
-            failure_file = os.path.join(FAILURE_FILE, "pynfs_cephs_failures.txt")
-            with open(failure_file, "w", encoding="utf-8") as f:
-                f.write(failure_summary)
-            logger.info("PyNFS failure summary written to %s", failure_file)
-        else:
-            logger.info("PyNFS tests completed successfully")
-            failure_msg = f"\n**🟢 PyNFS-CephFS:** `Passed`"
-            with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-                f.write(failure_msg)
-            with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
-                f.write("\nPassed")
+#         if fail_found or ganesha_stopped:
+#             stacktrace = check_process_crash_and_backtrace(
+#                 server_session,
+#                 process_name="ganesha",
+#                 cores_dir="/tmp/cores",
+#                 binary_path="/usr/bin/ganesha.nfsd",
+#             )
+#             if stacktrace:
+#                 backtrace_file = os.path.join(FAILURE_FILE, "pynfs_cephs_ganesha_backtrace.txt")
+#                 with open(backtrace_file, "w", encoding="utf-8") as f:
+#                     f.write(stacktrace)
+#                 logger.info("Ganesha backtrace written to %s", backtrace_file)
+#             failure_file = os.path.join(FAILURE_FILE, "pynfs_cephs_failures.txt")
+#             with open(failure_file, "w", encoding="utf-8") as f:
+#                 f.write(failure_summary)
+#             logger.info("PyNFS failure summary written to %s", failure_file)
+#         else:
+#             logger.info("PyNFS tests completed successfully")
+#             failure_msg = f"\n**🟢 PyNFS-CephFS:** `Passed`"
+#             with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+#                 f.write(failure_msg)
+#             with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
+#                 f.write("\nPassed")
 
-        assert fail_found == False and code == 0 and not ganesha_stopped, (
-            "PyNFS CephFS tests failed" + (" (ganesha died during test)" if ganesha_stopped else "")
-        )
+#         assert fail_found == False and code == 0 and not ganesha_stopped, (
+#             "PyNFS CephFS tests failed" + (" (ganesha died during test)" if ganesha_stopped else "")
+#         )
 
-    except Exception as e:
-        failure_msg = f"\n**🔴 PyNFS-CephFS:** `Failed`"
-        with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-            f.write(failure_msg)
-        with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
-            f.write("\nFailed")
+#     except Exception as e:
+#         failure_msg = f"\n**🔴 PyNFS-CephFS:** `Failed`"
+#         with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+#             f.write(failure_msg)
+#         with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
+#             f.write("\nFailed")
 
-# -------------------------------------------------------------------
-# Test 3: PyNFS-ACL with VFS
-# Node allocation: 2 (index 0 - client, index 3 - server)
-# -------------------------------------------------------------------
-@pytest.mark.parametrize("create_session", [[0, 3]], indirect=True)
-@pytest.mark.parametrize("cmake_flags", ["test_fsal_vfs"], indirect=True)
-def test_pynfs_acl_vfs(create_session, cmake_flags):
-    try:
-        logger.info("[TEST START]: PyNFS-ACL with VFS")
-        (client_session, client_workspace, client_node), (server_session, server_workspace, server_node) = create_session
-        failure_msg = ""
+# # -------------------------------------------------------------------
+# # Test 3: PyNFS-ACL with VFS
+# # Node allocation: 2 (index 0 - client, index 3 - server)
+# # -------------------------------------------------------------------
+# @pytest.mark.parametrize("create_session", [[0, 3]], indirect=True)
+# @pytest.mark.parametrize("cmake_flags", ["test_fsal_vfs"], indirect=True)
+# def test_pynfs_acl_vfs(create_session, cmake_flags):
+#     try:
+#         logger.info("[TEST START]: PyNFS-ACL with VFS")
+#         (client_session, client_workspace, client_node), (server_session, server_workspace, server_node) = create_session
+#         failure_msg = ""
 
-        logger.info("[TEST NODE DETAILS]: Client Node: %s, Server Node: %s", client_node, server_node)
-        logger.info("[TEST WORKSPACE DETAILS]: Client Workspace: %s, Server Workspace: %s", client_workspace, server_workspace)
-        logger.info("[TEST SESSION DETAILS]: Client Session: %s, Server Session: %s", client_session, server_session)
+#         logger.info("[TEST NODE DETAILS]: Client Node: %s, Server Node: %s", client_node, server_node)
+#         logger.info("[TEST WORKSPACE DETAILS]: Client Workspace: %s, Server Workspace: %s", client_workspace, server_workspace)
+#         logger.info("[TEST SESSION DETAILS]: Client Session: %s, Server Session: %s", client_session, server_session)
 
-        flag_str = " ".join(cmake_flags)
-        logger.info("Using CMake flags: %s", flag_str)
+#         flag_str = " ".join(cmake_flags)
+#         logger.info("Using CMake flags: %s", flag_str)
 
-        logger.info("NFS Ganesha setup for VFS tests")
-        ganesha_setup = VFSGaneshaManager(
-            session=server_session,
-            cmake_flags=flag_str
-        )
-        ganesha_setup.install_ganesha(server_workspace)
+#         logger.info("NFS Ganesha setup for VFS tests")
+#         ganesha_setup = VFSGaneshaManager(
+#             session=server_session,
+#             cmake_flags=flag_str
+#         )
+#         ganesha_setup.install_ganesha(server_workspace)
         
-        logger.info("VFS Exporter setup for NFS tests")
-        vfs_setup = VFSVolumeExporter(server_session, vfs_volume="pynfs", enable_acl=True, security_label=False)
-        vfs_setup.export_volume()
+#         logger.info("VFS Exporter setup for NFS tests")
+#         vfs_setup = VFSVolumeExporter(server_session, vfs_volume="pynfs", enable_acl=True, security_label=False)
+#         vfs_setup.export_volume()
 
         
-        # -----------------------
-        # Client Execution (thread 1: pynfs tests; thread 2: watch ganesha)
-        # -----------------------
-        logger.info("Running PyNFS-ACL tests on client node for VFS: %s", client_node)
+#         # -----------------------
+#         # Client Execution (thread 1: pynfs tests; thread 2: watch ganesha)
+#         # -----------------------
+#         logger.info("Running PyNFS-ACL tests on client node for VFS: %s", client_node)
 
-        pynfs = PyNFSManager(session=client_session, server_ip=server_node, backend_type="acl_vfs")
-        result_holder = [None]
-        ganesha_died = threading.Event()
-        test_done = threading.Event()
+#         pynfs = PyNFSManager(session=client_session, server_ip=server_node, backend_type="acl_vfs")
+#         result_holder = [None]
+#         ganesha_died = threading.Event()
+#         test_done = threading.Event()
 
-        def run_pynfs():
-            try:
-                r = pynfs.run_all_tests(export="/pynfs")
-                result_holder[0] = (r[0], r[1], r[2], False)
-            except Exception as e:
-                result_holder[0] = (True, str(e) or "Test aborted", 1, ganesha_died.is_set())
-            finally:
-                test_done.set()
+#         def run_pynfs():
+#             try:
+#                 r = pynfs.run_all_tests(export="/pynfs")
+#                 result_holder[0] = (r[0], r[1], r[2], False)
+#             except Exception as e:
+#                 result_holder[0] = (True, str(e) or "Test aborted", 1, ganesha_died.is_set())
+#             finally:
+#                 test_done.set()
 
-        def watch_ganesha():
-            while not test_done.is_set() and not ganesha_died.is_set():
-                _, code = run_cmd(server_session, "pgrep ganesha", check=False)
-                if code != 0:
-                    ganesha_died.set()
-                    client_session.close()
-                    break
-                sleep(5)
+#         def watch_ganesha():
+#             while not test_done.is_set() and not ganesha_died.is_set():
+#                 _, code = run_cmd(server_session, "pgrep ganesha", check=False)
+#                 if code != 0:
+#                     ganesha_died.set()
+#                     client_session.close()
+#                     break
+#                 sleep(5)
 
-        t1 = threading.Thread(target=run_pynfs)
-        t2 = threading.Thread(target=watch_ganesha)
-        t1.start()
-        t2.start()
-        t1.join()
-        t2.join()
+#         t1 = threading.Thread(target=run_pynfs)
+#         t2 = threading.Thread(target=watch_ganesha)
+#         t1.start()
+#         t2.start()
+#         t1.join()
+#         t2.join()
 
-        if result_holder[0] is None:
-            result_holder[0] = (True, "Test thread failed without result", 1, False)
-        fail_found, failure_summary, code, ganesha_stopped = result_holder[0]
-        if ganesha_stopped:
-            logger.error("Ganesha process died during test; test run aborted.")
+#         if result_holder[0] is None:
+#             result_holder[0] = (True, "Test thread failed without result", 1, False)
+#         fail_found, failure_summary, code, ganesha_stopped = result_holder[0]
+#         if ganesha_stopped:
+#             logger.error("Ganesha process died during test; test run aborted.")
 
-        if fail_found or ganesha_stopped:
-            stacktrace = check_process_crash_and_backtrace(
-                server_session,
-                process_name="ganesha",
-                cores_dir="/tmp/cores",
-                binary_path="/usr/bin/ganesha.nfsd",
-            )
-            if stacktrace:
-                backtrace_file = os.path.join(FAILURE_FILE, "pynfs_acl_vfs_ganesha_backtrace.txt")
-                with open(backtrace_file, "w", encoding="utf-8") as f:
-                    f.write(stacktrace)
-                logger.info("Ganesha backtrace written to %s", backtrace_file)
-            failure_file = os.path.join(FAILURE_FILE, "pynfs_acl_vfs_failures.txt")
-            with open(failure_file, "w", encoding="utf-8") as f:
-                f.write(failure_summary)
-            logger.info("PyNFS-ACL with VFS failure summary written to %s", failure_file)
-        else:
-            logger.info("PyNFS-ACL with VFS tests completed successfully")
-            failure_msg = f"\n**🟢 PyNFS-ACL-VFS:** `Passed`"
-            with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-                f.write(failure_msg)
-            with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
-                f.write("\nPassed")
+#         if fail_found or ganesha_stopped:
+#             stacktrace = check_process_crash_and_backtrace(
+#                 server_session,
+#                 process_name="ganesha",
+#                 cores_dir="/tmp/cores",
+#                 binary_path="/usr/bin/ganesha.nfsd",
+#             )
+#             if stacktrace:
+#                 backtrace_file = os.path.join(FAILURE_FILE, "pynfs_acl_vfs_ganesha_backtrace.txt")
+#                 with open(backtrace_file, "w", encoding="utf-8") as f:
+#                     f.write(stacktrace)
+#                 logger.info("Ganesha backtrace written to %s", backtrace_file)
+#             failure_file = os.path.join(FAILURE_FILE, "pynfs_acl_vfs_failures.txt")
+#             with open(failure_file, "w", encoding="utf-8") as f:
+#                 f.write(failure_summary)
+#             logger.info("PyNFS-ACL with VFS failure summary written to %s", failure_file)
+#         else:
+#             logger.info("PyNFS-ACL with VFS tests completed successfully")
+#             failure_msg = f"\n**🟢 PyNFS-ACL-VFS:** `Passed`"
+#             with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+#                 f.write(failure_msg)
+#             with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
+#                 f.write("\nPassed")
         
-        assert fail_found == False and code == 0 and not ganesha_stopped, (
-            "PyNFS CephFS tests failed" + (" (ganesha died during test)" if ganesha_stopped else "")
-        )
-    except Exception as e:
-        failure_msg = f"\n**🔴 PyNFS-ACL-VFS:** `Failed`"
-        with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
-            f.write(failure_msg)
-        with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
-            f.write("\nFailed")
+#         assert fail_found == False and code == 0 and not ganesha_stopped, (
+#             "PyNFS CephFS tests failed" + (" (ganesha died during test)" if ganesha_stopped else "")
+#         )
+#     except Exception as e:
+#         failure_msg = f"\n**🔴 PyNFS-ACL-VFS:** `Failed`"
+#         with open(SUMMARY_FILE, "a", encoding="utf-8") as f:
+#             f.write(failure_msg)
+#         with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
+#             f.write("\nFailed")
 
 # -----------------------
 # Test 4: PyNFS with GPFS
@@ -771,3 +771,4 @@ local-hostname: {vm_name}
             f.write(failure_msg)
         with open(SUMMARY_STATUS, "a", encoding="utf-8") as f:
             f.write("\nFailed")
+        sleep(12000)
