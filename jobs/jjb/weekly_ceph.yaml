@@ -1,0 +1,71 @@
+- job:
+    name: weekly-ceph-tests
+    project-type: pipeline
+    description: |
+      Weekly CI Test Pipeline for CephFS backend — runs Ceph bringup, Cthon, PyNFS, and PJDFS test suites
+
+    properties:
+      - discarder
+
+    parameters:
+      - centos_variables
+
+      # Job-specific parameters
+      - choice:
+          name: SERVER_NODE_COUNT
+          choices:
+            - '1'
+            - '2'
+          description: Number of server nodes to reserve
+
+      - choice:
+          name: CLIENT_NODE_COUNT
+          choices:
+            - '1'
+            - '2'
+          description: Number of client nodes to reserve
+
+      - string:
+          name: GIT_REPO
+          default: 'https://github.com/nfs-ganesha/nfs-ganesha.git'
+          description: NFS-Ganesha source repo
+
+      - string:
+          name: GIT_BRANCH
+          default: 'next'
+          description: NFS-Ganesha branch
+
+      - string:
+          name: CMAKE_FLAGS
+          default: ''
+          description: Custom cmake flags to append to the existing flags
+
+      - bool:
+          name: CMAKE_OVERRIDE
+          default: false
+          description: >
+            If set, overrides existing cmake flags and only uses CMAKE_FLAGS.
+            If unset, CMAKE_FLAGS is appended to the existing flags.
+      
+      - bool:
+          name: RUN_CTHON
+          default: true
+          description: Run Cthon tests
+
+      - bool:
+          name: RUN_PYNFS
+          default: true
+          description: Run PyNFS tests
+
+      - bool:
+          name: RUN_PJDFS
+          default: true
+          description: Run PJDFS tests
+
+    pipeline-scm:
+      scm:
+        - ci-tests
+      script-path: jobs/Jenkinsfile.weekly_ceph
+      lightweight-checkout: true
+
+# Made with Bob

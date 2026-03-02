@@ -1,0 +1,74 @@
+pipeline {
+    agent { label 'cico-workspace' }
+
+    options {
+        disableConcurrentBuilds()
+        timestamps()
+    }
+
+    environment {
+        PATH = "$HOME/.local/bin:$PATH"
+        PYTHONPATH = "ci-tests"
+    }
+
+    stages {
+
+        stage('Checkout NFS-Ganesha') {
+            steps {
+                echo "Cloning Ganesha repo: ${params.GIT_REPO} (${params.GIT_BRANCH})"
+                dir('nfs-ganesha') {
+                    git url: params.GIT_REPO, branch: params.GIT_BRANCH
+                    
+                    // Update submodules recursively
+                    sh '''
+                        echo "Updating submodules recursively"
+                        git submodule update --init --recursive
+                    '''
+                }
+            }
+        }
+
+        stage('Install Dependencies') {
+            steps {
+                sh '''
+                    python3 -m pip install --user --upgrade pip setuptools wheel
+                    python3 -m pip install --user -r ./ci-tests/ci_utils/requirements.txt
+                '''
+            }
+        }
+
+        stage('Run Selected Tests') {
+            steps {
+                script {
+                    def base = "test_cephfs_fsal or test_bringup_cephfs"
+                    def workloads = []
+
+                    if (params.RUN_CTHON) {
+                        workloads << "test_cthon"
+                    }
+                    if (params.RUN_PYNFS) {
+                        workloads << "test_pynfs"
+                    }
+                    if (params.RUN_PJDFS) {
+                        workloads << "test_pjdfs"
+                    }
+
+                    if (workloads.isEmpty()) {
+                        error("At least one workload must be selected")
+                    }
+
+                    def finalExpr = base + " or " + workloads.join(" or ")
+
+                    echo "Running: ${finalExpr}"
+
+                    sh """
+                        pytest -v -s \
+                            -k "${finalExpr}" \
+                            ci-tests/tests/test_weekly_ceph.py \
+                            --confcutdir=ci-tests/tests
+                    """
+                }
+            }
+        }
+    }
+}
