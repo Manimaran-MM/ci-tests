@@ -58,6 +58,7 @@ EXPORT {{
     Protocols = 3,4;
     Transports = TCP;
     Access_Type = RW;
+    Disable_ACL = False;
     Squash = None;
     {delegations_export}
     FSAL {{
