@@ -1,3 +1,4 @@
+from time import sleep
 from ci_utils.common.helpers import run_cmd
 
 from ci_utils.common.logger import get_logger
@@ -64,6 +65,7 @@ class CthonManager:
             check=False,
         )
         logger.info(f"[OK] Completed Cthon tests for NFS v{version}")
+        sleep(10800)
         return out, rc
 
     # ----------------------------

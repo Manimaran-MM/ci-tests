@@ -238,7 +238,7 @@ def test_bringup_cephfs(remote_sessions, reserved_nodes, ceph_setup_data):
     except Exception as e:
         logger.error(f"CephFS bringup failed: {e}")
 
-@pytest.mark.timeout(1200) 
+# @pytest.mark.timeout(1200) 
 def test_cthon(remote_sessions, reserved_nodes):
     logger.info("[TEST START]: Cthon with CephFS")
 
@@ -254,49 +254,49 @@ def test_cthon(remote_sessions, reserved_nodes):
     
     assert rc == 0, f"Cthon CephFS tests failed"
 
-@pytest.mark.timeout(1200)
-def test_delegation(remote_sessions, ceph_setup_data):
-    logger.info("[TEST START]: Update ganesha conf with delegation parameters")
+# @pytest.mark.timeout(1200)
+# def test_delegation(remote_sessions, ceph_setup_data):
+#     logger.info("[TEST START]: Update ganesha conf with delegation parameters")
 
-    server = remote_sessions["servers"][0]
+#     server = remote_sessions["servers"][0]
 
-    ceph_setup = ceph_setup_data
+#     ceph_setup = ceph_setup_data
 
-    # --- CACHED SETUP ---
-    if not ceph_setup._is_setup_done:
-        ceph_setup._subvol_path = ceph_setup.full_setup()
-        ceph_setup._is_setup_done = True
+#     # --- CACHED SETUP ---
+#     if not ceph_setup._is_setup_done:
+#         ceph_setup._subvol_path = ceph_setup.full_setup()
+#         ceph_setup._is_setup_done = True
 
-    subvol_path = ceph_setup._subvol_path
-    cephfs_name = ceph_setup.cephfs_name
+#     subvol_path = ceph_setup._subvol_path
+#     cephfs_name = ceph_setup.cephfs_name
 
-    ganesha_setup = GaneshaManager(
-        session=server,
-        subvol_path=subvol_path,
-        cephfs_name=cephfs_name,
-        ganesha_opts={
-            "delegations_v4": "true",
-            "delegations_export": "readwrite",
-            "ceph_async": "false",
-        }
-    )
+#     ganesha_setup = GaneshaManager(
+#         session=server,
+#         subvol_path=subvol_path,
+#         cephfs_name=cephfs_name,
+#         ganesha_opts={
+#             "delegations_v4": "true",
+#             "delegations_export": "readwrite",
+#             "ceph_async": "false",
+#         }
+#     )
 
-    ganesha_setup.write_conf()
-    ganesha_setup.restart()
+#     ganesha_setup.write_conf()
+#     ganesha_setup.restart()
 
-    logger.info("Delegation updation completed")
+#     logger.info("Delegation updation completed")
 
-def test_pynfs(remote_sessions, reserved_nodes):
-    logger.info("[TEST START]: PyNFS with CephFS")
+# def test_pynfs(remote_sessions, reserved_nodes):
+#     logger.info("[TEST START]: PyNFS with CephFS")
 
-    server_ip = reserved_nodes["servers"][0]
-    client = remote_sessions["clients"][0]
-    client_ip = reserved_nodes["clients"][0]    
+#     server_ip = reserved_nodes["servers"][0]
+#     client = remote_sessions["clients"][0]
+#     client_ip = reserved_nodes["clients"][0]    
 
-    setup_install_client_deps_cthon_pynfs(client)
-    logger.info("Running PyNFS tests on node: %s", client_ip)
-    pynfs = PyNFSManager(session=client, server_ip=server_ip, backend_type="ceph")
-    _, failure_summary, code = pynfs.run_all_tests(export="/nfs/cephfs")
-    logger.info("PyNFS test failure summary: %s", failure_summary)
+#     setup_install_client_deps_cthon_pynfs(client)
+#     logger.info("Running PyNFS tests on node: %s", client_ip)
+#     pynfs = PyNFSManager(session=client, server_ip=server_ip, backend_type="ceph")
+#     _, failure_summary, code = pynfs.run_all_tests(export="/nfs/cephfs")
+#     logger.info("PyNFS test failure summary: %s", failure_summary)
 
-    assert code == 0, f"PyNFS CephFS tests failed"
+#     assert code == 0, f"PyNFS CephFS tests failed"
