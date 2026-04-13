@@ -7,7 +7,7 @@ logger = get_logger(__name__)
 
 
 class PyNFSManager:
-    def __init__(self, session, server_ip, repo_url="git://git.linux-nfs.org/projects/cdmackay/pynfs.git", backend_type=None):
+    def __init__(self, session, server_ip, repo_url="-b useme https://github.com/ffilz/pynfs.git", backend_type=None):
         """
         Manage PyNFS test runs on a remote session.
 

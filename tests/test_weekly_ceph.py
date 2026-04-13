@@ -721,6 +721,8 @@ def test_gpfs_pynfs(remote_sessions, reserved_nodes, gpfs_env):
     vm_ip = gpfs_env["vm_ip"]
     server_ip = reserved_nodes["servers"][0]
     
+    setup_install_client_deps_cthon_pynfs(server)
+
     # Wait for NFS grace period
     logger.info("Waiting for 90 seconds before starting PyNFS tests as the NFS grace period is 90 seconds")
     sleep(90)
