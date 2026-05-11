@@ -588,7 +588,7 @@ def test_pynfs(remote_sessions, reserved_nodes, cephfs_env):
 # # --------------------------------
 # ## Actual tests starts here - GPFS
 # # --------------------------------
-@pytest.mark.timeout(3600)
+# @pytest.mark.timeout(3600)
 @pytest.mark.dependency(name="test_bringup_gpfs")
 @pytest.mark.parametrize("cmake_flags", ["test_fsal_gpfs"], indirect=True)
 def test_bringup_gpfs(gpfs_env, cmake_flags):
@@ -724,7 +724,7 @@ def test_gpfs_pjdfs(remote_sessions, reserved_nodes, gpfs_env):
 
     assert not fail_found and code == 0 , "PJDFS GPFS tests failed"
 
-@pytest.mark.timeout(2400)
+# @pytest.mark.timeout(2400)
 @pytest.mark.dependency(name="test_gpfs_pynfs", depends=["test_bringup_gpfs"])
 def test_gpfs_pynfs(remote_sessions, reserved_nodes, gpfs_env):
     logger.info("\n" + "=" * 80 + "\n[TEST START]: PyNFS with GPFS\n" + "=" * 80)

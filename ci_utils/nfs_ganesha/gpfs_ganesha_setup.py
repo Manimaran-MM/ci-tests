@@ -293,6 +293,8 @@ class GPFSGaneshaManager:
             run_cmd(self.session, "systemctl daemon-reload")
             time.sleep(20)
             run_cmd(self.session, "cat /var/mmfs/ces/nfs-config/gpfs.ganesha.main.conf")
+        logger.info("Enabling sleep")
+        time.sleep(10500)
         
         self.start_ganesha_service()
 

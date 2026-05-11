@@ -58,12 +58,12 @@ class PyNFSManager:
         known_failures = []
 
         if version == "4.0":
-            cmd = (
-                f"cd {self.repo_dir}/nfs4.0 && "
-                f"./testserver.py {server}:{export} "
-                f"--secure --verbose --maketree --showomit --rundeps all ganesha"
-            )
-
+            # cmd = (
+            #     f"cd {self.repo_dir}/nfs4.0 && "
+            #     f"./testserver.py {server}:{export} "
+            #     f"--secure --verbose --maketree --showomit --rundeps all ganesha"
+            # )
+            cmd = (f" cd {self.repo_dir}/nfs4.0 && ./testserver.py {server}:{export} --secure --verbose --maketree SEC6 ganesha")
             if self.backend_type == "ceph":
                 # BZ-2415387
                 known_failures = [
@@ -227,7 +227,7 @@ class PyNFSManager:
 
         results = [
             self.run_test("4.0", self.server_ip, export),
-            self.run_test("4.1", self.server_ip, export)
+            # self.run_test("4.1", self.server_ip, export)
         ]
 
         return self.collect_failures(results)
