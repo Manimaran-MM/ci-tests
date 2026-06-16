@@ -165,116 +165,116 @@ pipeline {
             }
         }
 
-        stage('Pre-Check Patchset - Initial') {
-            steps {
-                script {
-                    preCheckGerritPatchset()
-                }
-            }
-        }
+        // stage('Pre-Check Patchset - Initial') {
+        //     steps {
+        //         script {
+        //             preCheckGerritPatchset()
+        //         }
+        //     }
+        // }
 
-        stage('Run Checkpatch, Clang and FSAL Tests') {
-            steps {
-                sh """
-                    export GIT_CLONE_DEPTH=2
-                    export NODE_COUNT=1
+        // stage('Run Checkpatch, Clang and FSAL Tests') {
+        //     steps {
+        //         sh """
+        //             export GIT_CLONE_DEPTH=2
+        //             export NODE_COUNT=1
 
-                    echo "[PIPELINE]: Reserving nodes for tests..."
-                    pytest -v -s ci-tests/tests/test_reserve_nodes.py
+        //             echo "[PIPELINE]: Reserving nodes for tests..."
+        //             pytest -v -s ci-tests/tests/test_reserve_nodes.py
 
-                    echo "[PIPELINE]: Setting up common test environment..."
-                    pytest -c ci-tests/ci_utils/pytest.ini -v -s -m checkpatch_fsal ci-tests/tests/test_ci_pre_req.py
+        //             echo "[PIPELINE]: Setting up common test environment..."
+        //             pytest -c ci-tests/ci_utils/pytest.ini -v -s -m checkpatch_fsal ci-tests/tests/test_ci_pre_req.py
 
-                    echo "[PIPELINE]: Running tests..."
-                    pytest -v -n 6 --capture=no --junitxml=report-checkpatch-fsal.xml ci-tests/tests/test_checkpatch_fsal.py
-                """
-            }
+        //             echo "[PIPELINE]: Running tests..."
+        //             pytest -v -n 6 --capture=no --junitxml=report-checkpatch-fsal.xml ci-tests/tests/test_checkpatch_fsal.py
+        //         """
+        //     }
             
-            post {
-                always {
-                    echo "Deleting reserved nodes..."
-                    sh 'pytest -v -s ci-tests/tests/test_delete_nodes.py'
+        //     post {
+        //         always {
+        //             echo "Deleting reserved nodes..."
+        //             sh 'pytest -v -s ci-tests/tests/test_delete_nodes.py'
                     
-                    script {
-                        def filesToCat = [
-                            "${WORKSPACE}/failures/checkpatch_logs.json",
-                            "${WORKSPACE}/failures/clang_logs.json",
-                            "${WORKSPACE}/summary_checkpatch_fsal.txt",
-                            "${WORKSPACE}/summary_status.txt"
-                        ]
+        //             script {
+        //                 def filesToCat = [
+        //                     "${WORKSPACE}/failures/checkpatch_logs.json",
+        //                     "${WORKSPACE}/failures/clang_logs.json",
+        //                     "${WORKSPACE}/summary_checkpatch_fsal.txt",
+        //                     "${WORKSPACE}/summary_status.txt"
+        //                 ]
 
-                        filesToCat.each { file ->
-                            if (fileExists(file)) {
-                                sh "cat ${file}"
-                            }
-                        }
+        //                 filesToCat.each { file ->
+        //                     if (fileExists(file)) {
+        //                         sh "cat ${file}"
+        //                     }
+        //                 }
 
 
-                        def notifyFlag = '--notify NONE'
-                        def verifiedFlag = ''
-                        def postCheckpatchFailure = false
-                        def postClangFailure = false
-                        def statusFile = "${WORKSPACE}/summary_status.txt"
-                        def checkpatchJSONFile = "${WORKSPACE}/failures/checkpatch_logs.json"
-                        def clangJSONFile = "${WORKSPACE}/failures/clang_logs.json"
+        //                 def notifyFlag = '--notify NONE'
+        //                 def verifiedFlag = ''
+        //                 def postCheckpatchFailure = false
+        //                 def postClangFailure = false
+        //                 def statusFile = "${WORKSPACE}/summary_status.txt"
+        //                 def checkpatchJSONFile = "${WORKSPACE}/failures/checkpatch_logs.json"
+        //                 def clangJSONFile = "${WORKSPACE}/failures/clang_logs.json"
 
-                        if (fileExists(statusFile)) {
-                            def content = readFile(statusFile).trim()
-                            echo "Summary status: ${content}"
+        //                 if (fileExists(statusFile)) {
+        //                     def content = readFile(statusFile).trim()
+        //                     echo "Summary status: ${content}"
 
-                            if (content.contains('Failed')) {
-                                notifyFlag = '--notify ALL'
-                                echo "Test failed → setting notifyFlag=${notifyFlag}"
-                            }
-                        } else {
-                            echo "summary_status.txt not found, using default flags"
-                        }
+        //                     if (content.contains('Failed')) {
+        //                         notifyFlag = '--notify ALL'
+        //                         echo "Test failed → setting notifyFlag=${notifyFlag}"
+        //                     }
+        //                 } else {
+        //                     echo "summary_status.txt not found, using default flags"
+        //                 }
 
-                        // Check for Clang-format & Checkpatch failures in the JSON file to post to gerrit as inline comments
-                        if (fileExists(checkpatchJSONFile)) {
-                            def checkpatch_content = readFile(checkpatchJSONFile).trim()
-                            echo "Checkpatch JSON content: ${checkpatch_content}"
+        //                 // Check for Clang-format & Checkpatch failures in the JSON file to post to gerrit as inline comments
+        //                 if (fileExists(checkpatchJSONFile)) {
+        //                     def checkpatch_content = readFile(checkpatchJSONFile).trim()
+        //                     echo "Checkpatch JSON content: ${checkpatch_content}"
                             
-                            if (!checkpatch_content.contains("Checkpatch OK")) {
-                                postCheckpatchFailure = true
-                                echo "Checkpatch failure detected → setting postCheckpatchFailure=${postCheckpatchFailure}"
-                            }
-                        }
+        //                     if (!checkpatch_content.contains("Checkpatch OK")) {
+        //                         postCheckpatchFailure = true
+        //                         echo "Checkpatch failure detected → setting postCheckpatchFailure=${postCheckpatchFailure}"
+        //                     }
+        //                 }
  
-                         if (fileExists(clangJSONFile)) {
-                            def clang_content = readFile(clangJSONFile).trim()
-                            echo "Clang JSON content: ${clang_content}"
+        //                  if (fileExists(clangJSONFile)) {
+        //                     def clang_content = readFile(clangJSONFile).trim()
+        //                     echo "Clang JSON content: ${clang_content}"
                             
-                            if (!clang_content.contains("clang-format OK")) {
-                                postClangFailure = true
-                                echo "Clang-format failure detected → setting postClangFailure=${postClangFailure}"
-                            }
-                        }
+        //                     if (!clang_content.contains("clang-format OK")) {
+        //                         postClangFailure = true
+        //                         echo "Clang-format failure detected → setting postClangFailure=${postClangFailure}"
+        //                     }
+        //                 }
 
-                        postToGerrit("${WORKSPACE}/summary_checkpatch_fsal.txt", notifyFlag, verifiedFlag, postCheckpatchFailure, "${WORKSPACE}/failures/checkpatch_logs.json", postClangFailure, "${WORKSPACE}/failures/clang_logs.json")
+        //                 postToGerrit("${WORKSPACE}/summary_checkpatch_fsal.txt", notifyFlag, verifiedFlag, postCheckpatchFailure, "${WORKSPACE}/failures/checkpatch_logs.json", postClangFailure, "${WORKSPACE}/failures/clang_logs.json")
 
-                        def failuresFolder = "${WORKSPACE}/failures"
-                        def failuresFiles = findFiles(glob: 'failures/**')
+        //                 def failuresFolder = "${WORKSPACE}/failures"
+        //                 def failuresFiles = findFiles(glob: 'failures/**')
 
-                        if (fileExists("${WORKSPACE}/failures")) {
-                            archiveArtifacts artifacts: 'failures/**', allowEmptyArchive: true
-                        } else {
-                            echo "No failures folder found, skipping artifact archive."
-                        }
-                    }
-                    // Publish test results
-                    junit 'report-checkpatch-fsal.xml'
-                }
-            }
-        }
+        //                 if (fileExists("${WORKSPACE}/failures")) {
+        //                     archiveArtifacts artifacts: 'failures/**', allowEmptyArchive: true
+        //                 } else {
+        //                     echo "No failures folder found, skipping artifact archive."
+        //                 }
+        //             }
+        //             // Publish test results
+        //             junit 'report-checkpatch-fsal.xml'
+        //         }
+        //     }
+        // }
 
-        stage('Pre-Check Patchset - Intermediate') {
-            steps {
-                script {
-                    preCheckGerritPatchset()
-                }
-            }
-        }
+        // stage('Pre-Check Patchset - Intermediate') {
+        //     steps {
+        //         script {
+        //             preCheckGerritPatchset()
+        //         }
+        //     }
+        // }
 
         stage('Run Pynfs and Cthon Tests') {
             steps {

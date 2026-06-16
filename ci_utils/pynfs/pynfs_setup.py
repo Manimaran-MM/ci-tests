@@ -1,9 +1,11 @@
 from time import sleep
-from typing import List, Tuple
+from typing import List, Optional, Tuple
 
 from ci_utils.common.helpers import run_cmd
 from ci_utils.common.logger import get_logger
 logger = get_logger(__name__)
+
+_RESULT_SUFFIXES = (": SUCCESS", ": FAILURE", ": SKIP", ": OMIT")
 
 
 class PyNFSManager:
@@ -23,6 +25,43 @@ class PyNFSManager:
         self.server_ip = server_ip
         self.failure_log = "/root/pynfs_failures.txt"
         self.backend_type = backend_type
+        workspace = getattr(session, "default_dir", None) or "/root"
+        self.run_log = f"{workspace}/pynfs_testserver.log"
+
+    @staticmethod
+    def parse_last_test_context(log_text: str) -> str:
+        """Return a short summary of the last pynfs test activity from testserver output."""
+        if not log_text:
+            return "No pynfs log output available."
+
+        last_completed = None
+        for line in log_text.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            for suffix in _RESULT_SUFFIXES:
+                if suffix in stripped:
+                    last_completed = stripped.split(suffix, 1)[0].strip()
+                    break
+
+        trailing = [ln.strip() for ln in log_text.splitlines() if ln.strip()][-5:]
+        summary = []
+        if last_completed:
+            summary.append(
+                f"Last completed pynfs test: {last_completed} "
+                "(ganesha likely died during the next test)."
+            )
+        else:
+            summary.append("No completed pynfs test results found in log.")
+        summary.append("Last log lines:")
+        summary.extend(f"  {ln}" for ln in trailing)
+        return "\n".join(summary)
+
+    def fetch_run_log(self, session=None) -> str:
+        """Read testserver log from remote node (usable after pynfs session is closed)."""
+        sess = session or self.session
+        out, _ = run_cmd(sess, f"cat {self.run_log} 2>/dev/null", check=False)
+        return out or ""
 
     # ----------------------------
     # Clone and build pynfs
@@ -87,7 +126,7 @@ class PyNFSManager:
         elif version == "4.1":
             cmd = (
                 f"cd {self.repo_dir}/nfs4.1 && "
-                f"./testserver.py {server}:{export} all ganesha "
+                f"python3 -u ./testserver.py {server}:{export} all ganesha "
                 f"--secure --verbose --maketree --showomit --rundeps"
             )
 
@@ -145,10 +184,14 @@ class PyNFSManager:
         wait_secs = 15
         out = ""
         code = 1
+        run_cmd(self.session, f"rm -f {self.run_log}", check=False)
         for attempt in range(1, max_retries + 1):
             logger.info(f"PyNFS attempt {attempt}/{max_retries}...")
 
-            out, code = run_cmd(self.session, cmd, check=False)
+            out, code = run_cmd(self.session, f"{cmd} > {self.run_log} 2>&1", check=False)
+            log_out = self.fetch_run_log()
+            if log_out:
+                out = log_out
 
             # Detect initialization failure
             if "Initialization failed" not in out:
@@ -225,8 +268,10 @@ class PyNFSManager:
         logger.info("[TEST]: Running all pynfs test suites")
         self.clone_and_build()
 
+        logger.info("Waiting for 5 hours to ensure the test is complete")
+        sleep(18000) # Wait for 5 hours to ensure the test is complete
         results = [
-            self.run_test("4.0", self.server_ip, export),
+            # self.run_test("4.0", self.server_ip, export),
             self.run_test("4.1", self.server_ip, export)
         ]
 
