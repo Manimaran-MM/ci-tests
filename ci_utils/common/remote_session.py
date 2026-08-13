@@ -1,6 +1,7 @@
 import subprocess
 import os
 import tempfile
+import threading
 from ci_utils.common.logger import get_logger
 logger = get_logger(__name__)
 
@@ -59,7 +60,7 @@ class RemoteSession:
     # -----------------------
     # Run Command(s) on Remote Node
     # -----------------------
-    def run(self, cmds, timeout=3600):
+    def run(self, cmds, timeout=3600, stream=False):
         logger.info(f"[STEP]: Running command(s) {cmds} on {self.node_ip}")
         if isinstance(cmds, str):
             cmds = [cmds]
@@ -79,17 +80,49 @@ class RemoteSession:
 
             logger.info(f"[INFO] Complete SSH command: {' '.join(ssh_cmd)}")
             logger.info("Running on %s: %s", self.node_ip, full_cmd)
-            proc = subprocess.Popen(
-                ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
-            )
-            try:
-                out, err = proc.communicate(timeout=timeout)
-                results.append((out, err, proc.returncode))
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                out, err = proc.communicate()
-                logger.error(f"Command timed out after {timeout} seconds: {full_cmd}")
-                results.append((out, err, -1))
+            if stream:
+                proc = subprocess.Popen(
+                    ssh_cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    universal_newlines=True,
+                    bufsize=1,
+                )
+                out_lines = []
+
+                def _read_stdout():
+                    assert proc.stdout is not None
+                    for line in proc.stdout:
+                        line = line.rstrip("\n")
+                        out_lines.append(line)
+                        if line:
+                            logger.info(line)
+
+                reader = threading.Thread(target=_read_stdout, daemon=True)
+                reader.start()
+                try:
+                    proc.wait(timeout=timeout)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait()
+                    logger.error(f"Command timed out after {timeout} seconds: {full_cmd}")
+                    reader.join(timeout=5)
+                    results.append(("\n".join(out_lines), "", -1))
+                    continue
+                reader.join(timeout=5)
+                results.append(("\n".join(out_lines), "", proc.returncode))
+            else:
+                proc = subprocess.Popen(
+                    ssh_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True
+                )
+                try:
+                    out, err = proc.communicate(timeout=timeout)
+                    results.append((out, err, proc.returncode))
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    out, err = proc.communicate()
+                    logger.error(f"Command timed out after {timeout} seconds: {full_cmd}")
+                    results.append((out, err, -1))
 
         return results if len(results) > 1 else results[0]
 
@@ -118,7 +151,7 @@ class RemoteSessionThroughJump(RemoteSession):
         super().__init__(node_ip=node_ip, user=user, key_file=key_file, default_dir=default_dir)
         self.jump_session = jump_session
 
-    def run(self, cmds, timeout=3600):
+    def run(self, cmds, timeout=3600, stream=False):
         """
         Run command on VM via baremetal node session
         """
@@ -129,7 +162,7 @@ class RemoteSessionThroughJump(RemoteSession):
         results = []
         for cmd in cmds:
             ssh_cmd = f"ssh -i {self.key_file} -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null {self.user}@{self.node_ip} {cmd}"
-            out, err, code = self.jump_session.run(ssh_cmd, timeout)
+            out, err, code = self.jump_session.run(ssh_cmd, timeout, stream=stream)
             results.append((out, err, code))
 
         return results if len(results) > 1 else results[0]

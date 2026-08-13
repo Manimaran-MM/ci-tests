@@ -189,13 +189,14 @@ def check_process_crash_and_backtrace(
 # -----------------------
 # Run remote commands
 # -----------------------
-def run_cmd(session, cmd, check=True, timeout=3600, source_bashrc=False):
+def run_cmd(session, cmd, check=True, timeout=3600, source_bashrc=False, stream=False):
     """Run remote command on session and return stdout.
     Args:
         session (RemoteSession): Active RemoteSession instance.
         cmd (str): Command to run.
         check (bool): If True, raise RuntimeError on non-zero exit code.
         timeout (int): Command timeout in seconds.
+        stream (bool): If True, log remote stdout lines as they arrive.
     Returns:
         str: Command stdout output.
     Raises:
@@ -203,12 +204,15 @@ def run_cmd(session, cmd, check=True, timeout=3600, source_bashrc=False):
     """
     cmd_to_run = f'source ~/.bashrc && {cmd}' if source_bashrc else cmd
     logger.info(f"[STEP]: Running remote command: {cmd_to_run}")
-    out, err, code = session.run(cmd_to_run, timeout)
+    out, err, code = session.run(cmd_to_run, timeout, stream=stream)
     if code != 0 and check:
         logger.error(f"Command failed: {cmd_to_run}\n{err}")
         logger.error(f"Failure Output: {out}")
         raise RuntimeError(err)
-    logger.info(f"[REMOTE] Command output for {cmd_to_run} with return code {code}: Output: {out.strip()} \n {err.strip()}\n")
+    if stream:
+        logger.info("[REMOTE] Command finished with return code %s (streamed output)", code)
+    else:
+        logger.info(f"[REMOTE] Command output for {cmd_to_run} with return code {code}: Output: {out.strip()} \n {err.strip()}\n")
     return out.strip(), code
 
 # -----------------------

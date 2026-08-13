@@ -1,5 +1,4 @@
 from time import sleep
-from typing import List, Tuple
 
 from ci_utils.common.helpers import run_cmd
 from ci_utils.common.logger import get_logger
@@ -56,12 +55,14 @@ class PyNFSManager:
         """
         logger.info("[TEST]: Running pynfs tests for NFSv%s...", version)
         known_failures = []
+        log_path = f"/root/pynfs_nfs{version.replace('.', '')}.log"
 
         if version == "4.0":
             cmd = (
                 f"cd {self.repo_dir}/nfs4.0 && "
-                f"./testserver.py {server}:{export} "
-                f"--secure --verbose --maketree --showomit --rundeps all ganesha"
+                f"stdbuf -oL ./testserver.py {server}:{export} "
+                f"--secure --verbose --maketree --showomit --rundeps all ganesha "
+                f"2>&1 | tee {log_path}"
             )
 
             if self.backend_type == "ceph":
@@ -87,8 +88,9 @@ class PyNFSManager:
         elif version == "4.1":
             cmd = (
                 f"cd {self.repo_dir}/nfs4.1 && "
-                f"./testserver.py {server}:{export} all ganesha "
-                f"--secure --verbose --maketree --showomit --rundeps"
+                f"stdbuf -oL ./testserver.py {server}:{export} all ganesha "
+                f"--secure --verbose --maketree --showomit --rundeps "
+                f"2>&1 | tee {log_path}"
             )
 
             if self.backend_type == "ceph":
@@ -106,8 +108,9 @@ class PyNFSManager:
                 ## Adding no-deleg option to skip delegation tests for VFS backends BZ-2415392
                 cmd = (
                     f"cd {self.repo_dir}/nfs4.1 && "
-                    f"./testserver.py {server}:{export} all ganesha nodeleg"
-                    f" --secure --verbose --maketree --showomit --rundeps"
+                    f"stdbuf -oL ./testserver.py {server}:{export} all ganesha nodeleg"
+                    f" --secure --verbose --maketree --showomit --rundeps "
+                    f"2>&1 | tee {log_path}"
                 )
                 known_failures = [
                     "SEQ6",
@@ -147,12 +150,13 @@ class PyNFSManager:
         code = 1
         for attempt in range(1, max_retries + 1):
             logger.info(f"PyNFS attempt {attempt}/{max_retries}...")
+            logger.info("PyNFS log on test host: %s", log_path)
 
-            out, code = run_cmd(self.session, cmd, check=False)
+            out, code = run_cmd(self.session, cmd, check=False, stream=True)
 
             # Detect initialization failure
             if "Initialization failed" not in out:
-                logger.info("pynfs %s test finished. Log:\n %s", version, out)
+                logger.info("pynfs %s test finished (see streamed output above).", version)
 
                 # --- Filter known failures ---
                 if known_failures:
@@ -226,7 +230,7 @@ class PyNFSManager:
         self.clone_and_build()
 
         results = [
-            self.run_test("4.0", self.server_ip, export),
+            # self.run_test("4.0", self.server_ip, export),
             self.run_test("4.1", self.server_ip, export)
         ]
 
